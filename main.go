@@ -91,14 +91,14 @@ var manager = &ClientManager{
 }
 
 ///历史消息链表
-const InfoListSize = 100
-
+// const InfoListSize = 100
 type InfoList struct {
-	info *list.List
+	info         *list.List
+	infoListSize int
 }
 
 func (infoList *InfoList) pushItem(message string) {
-	if infoList.info.Len() >= InfoListSize {
+	if infoList.info.Len() >= infoList.infoListSize {
 		infoList.info.Remove(infoList.info.Front())
 	}
 	infoList.info.PushBack(message)
@@ -114,6 +114,10 @@ func (infoList *InfoList) getItems() []string {
 	return items
 }
 
+func (infoList *InfoList) empty() {
+	infoList.info.Init()
+}
+
 func (infoList *InfoList) toBytes() []byte {
 	bytes, err := json.Marshal(infoList.getItems())
 	if err != nil {
@@ -121,8 +125,6 @@ func (infoList *InfoList) toBytes() []byte {
 	}
 	return bytes
 }
-
-var infoList = &InfoList{info: list.New()}
 
 ///Websocket 方法
 func websocketHandler(c *websocket.Conn) {
@@ -140,9 +142,13 @@ func websocketHandler(c *websocket.Conn) {
 var static embed.FS
 
 var port = flag.Int("p", 3000, "port")
+var infoListSize = flag.Int("s", 100, "info list size")
+
+var infoList *InfoList
 
 func main() {
 	flag.Parse()
+	infoList = &InfoList{info: list.New(), infoListSize: *infoListSize}
 	go manager.start()
 
 	app := fiber.New()
@@ -158,6 +164,10 @@ func main() {
 	app.Get("/api/ws", websocket.New(websocketHandler))
 	app.Get("/api/info_list", func(c *fiber.Ctx) error {
 		return c.Send(infoList.toBytes())
+	})
+	app.Get("/api/empty_info", func(c *fiber.Ctx) error {
+		infoList.empty()
+		return c.SendString("empty the info")
 	})
 	log.Fatal(app.Listen(fmt.Sprintf("0.0.0.0:%v", *port)))
 }
